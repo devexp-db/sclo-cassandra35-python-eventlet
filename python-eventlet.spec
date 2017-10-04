@@ -1,3 +1,6 @@
+%{?scl:%scl_package python-eventlet}
+%{!?scl:%global pkg_name %{name}}
+
 # sitelib for noarch packages, sitearch for others (remove the unneeded one)
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
@@ -10,9 +13,9 @@
 %global with_python3 1
 %endif
 
-Name:           python-%{pypi_name}
+Name:           %{?scl_prefix}python-%{pypi_name}
 Version:        0.21.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Highly concurrent networking library
 License:        MIT
 URL:            http://eventlet.net
@@ -26,6 +29,9 @@ BuildRequires:  python-greenlet
 
 Requires:       python-greenlet
 
+%{?scl:Requires: %scl_runtime}
+%{?scl:BuildRequires: %scl-scldevel}
+
 %description
 Eventlet is a networking library written in Python. It achieves high
 scalability by using non-blocking io while at the same time retaining
@@ -33,7 +39,7 @@ high programmer usability by using coroutines to make the non-blocking
 io operations appear blocking at the source code level.
 
 
-%package -n python2-%{pypi_name}
+%package -n %{?scl_prefix}python2-%{pypi_name}
 Summary:        Highly concurrent networking library
 
 BuildRequires:  python2-devel
@@ -42,12 +48,12 @@ BuildRequires:  python-setuptools
 Requires:       python-greenlet
 Requires:       python-enum34
 
-%{?python_provide:%python_provide python2-%{pypi_name}}
+%{!?scl:%{?python_provide:%python_provide python2-%{pypi_name}}}
 # python_provide does not exist in CBS Cloud buildroot
-Provides:   python-%{pypi_name} = %{version}-%{release}
-Obsoletes:  python-%{pypi_name} < 0.17.4-3
+Provides:   %{?scl_prefix}python-%{pypi_name} = %{version}-%{release}
+Obsoletes:  %{?scl_prefix}python-%{pypi_name} < 0.17.4-3
 
-%description -n python2-%{pypi_name}
+%description -n %{?scl_prefix}python2-%{pypi_name}
 Eventlet is a networking library written in Python. It achieves high
 scalability by using non-blocking io while at the same time retaining
 high programmer usability by using coroutines to make the non-blocking
@@ -55,7 +61,7 @@ io operations appear blocking at the source code level.
 
 
 %if 0%{?with_python3}
-%package -n python3-eventlet
+%package -n %{?scl_prefix}python3-eventlet
 Summary:        Highly concurrent networking library
 BuildArch:      noarch
 
@@ -66,9 +72,9 @@ BuildRequires:  python3-greenlet
 
 Requires:       python3-greenlet
 
-%{?python_provide:%python_provide python3-eventlet}
+%{!?scl:%{?python_provide:%python_provide python3-eventlet}}
 
-%description -n python3-eventlet
+%description -n %{?scl_prefix}python3-eventlet
 Eventlet is a networking library written in Python. It achieves high
 scalability by using non-blocking io while at the same time retaining
 high programmer usability by using coroutines to make the non-blocking
@@ -76,26 +82,26 @@ io operations appear blocking at the source code level.
 %endif
 
 
-%package -n python2-%{pypi_name}-doc
+%package -n %{?scl_prefix}python2-%{pypi_name}-doc
 Summary:        Documentation for %{name}
 BuildRequires:  python-sphinx
-BuildRequires:  python2-zmq
+BuildRequires:  %{?scl_prefix}python2-zmq
 
-%{?python_provide:%python_provide python2-%{pypi_name}-doc}
+%{!?scl:%{?python_provide:%python_provide python2-%{pypi_name}-doc}}
 # python_provide does not exist in CBS Cloud buildroot
-Provides:   python-%{pypi_name}-doc = %{version}-%{release}
-Obsoletes:  python-%{pypi_name}-doc < 0.17.4-3
+Provides:   %{?scl_prefix}python-%{pypi_name}-doc = %{version}-%{release}
+Obsoletes:  %{?scl_prefix}python-%{pypi_name}-doc < 0.17.4-3
 
-%description -n python2-%{pypi_name}-doc
+%description -n %{?scl_prefix}python2-%{pypi_name}-doc
 Documentation for the python-eventlet package.
 
 %if 0%{?with_python3}
-%package -n python3-eventlet-doc
+%package -n %{?scl_prefix}python3-eventlet-doc
 Summary: Documentation for python3-eventlet-doc
 BuildRequires:  python3-sphinx
-BuildRequires:  python3-zmq
+BuildRequires:  %{?scl_prefix}python3-zmq
 
-%description -n python3-eventlet-doc
+%description -n %{?scl_prefix}python3-eventlet-doc
 Documentation for the python-eventlet package.
 %endif
 
@@ -129,6 +135,7 @@ popd
 %endif
 
 %build
+%{?scl:scl enable %{scl} - << "EOF"}
 %{__python2} setup.py build
 
 %if 0%{?with_python3}
@@ -136,6 +143,7 @@ pushd %{py3dir}
 %{__python3} setup.py build
 popd
 %endif
+%{?scl:EOF}
 
 %check
 # Tests are written only for Python 3
@@ -144,47 +152,52 @@ nosetests-%{python3_version}
 %endif
 
 %install
+%{?scl:scl enable %{scl} - << "EOF"}
 %if 0%{?with_python3}
 pushd %{py3dir}
-%{__python3} setup.py install --skip-build --root %{buildroot}
+%{__python3} setup.py install --skip-build --root %{buildroot} --prefix %{?_prefix}
 rm -rf %{buildroot}/%{python3_sitelib}/tests
 popd
 %endif
 
-%{__python2} setup.py install --skip-build --root %{buildroot}
+%{__python2} setup.py install --skip-build --root %{buildroot} --prefix %{?_prefix}
 rm -rf %{buildroot}/%{python2_sitelib}/tests
 # FIXME: Those files are not meant to be used with Python 2.7
 # Anyway the whole module eventlet.green.http is Python 3 only
 # Trying to import it will fail under Python 2.7
 # https://github.com/eventlet/eventlet/issues/369
 rm -rf %{buildroot}/%{python2_sitelib}/%{pypi_name}/green/http/{cookiejar,client}.py
+%{?scl:EOF}
 
 
-%files -n python2-%{pypi_name}
+%files -n %{?scl_prefix}python2-%{pypi_name}
 %doc README.rst AUTHORS LICENSE NEWS
 %license LICENSE
 %{python2_sitelib}/%{pypi_name}
 %{python2_sitelib}/%{pypi_name}-%{version}-py?.?.egg-info
 
 %if 0%{?with_python3}
-%files -n python3-%{pypi_name}
+%files -n %{?scl_prefix}python3-%{pypi_name}
 %doc README.rst AUTHORS LICENSE NEWS
 %license LICENSE
 %{python3_sitelib}/%{pypi_name}
 %{python3_sitelib}/%{pypi_name}-%{version}-py?.?.egg-info
 %endif
 
-%files -n python2-%{pypi_name}-doc
+%files -n %{?scl_prefix}python2-%{pypi_name}-doc
 %license LICENSE
 %doc doc/_build/html
 
 %if 0%{?with_python3}
-%files -n python3-%{pypi_name}-doc
+%files -n %{?scl_prefix}python3-%{pypi_name}-doc
 %license LICENSE
 %doc doc/_build/html
 %endif
 
 %changelog
+* Wed Oct 04 2017 Augusto Mecking Caringi <acaringi@redhat.com> - 0.21.0-3
+- scl conversion
+
 * Thu Jul 27 2017 Fedora Release Engineering <releng@fedoraproject.org> - 0.21.0-2
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_27_Mass_Rebuild
 
